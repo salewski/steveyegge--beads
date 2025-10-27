@@ -501,7 +501,10 @@ func (s *SQLiteStorage) GetDependencyTree(ctx context.Context, issueID string, m
 				JOIN dependencies d ON i.id = d.issue_id
 				JOIN tree t ON d.depends_on_id = t.id
 				WHERE t.depth < ?
-				AND t.path NOT LIKE '%' || i.id || '%'
+				AND t.path != i.id
+			AND t.path NOT LIKE i.id || '→%'
+			AND t.path NOT LIKE '%→' || i.id || '→%'
+			AND t.path NOT LIKE '%→' || i.id
 				)
 				SELECT id, title, status, priority, description, design,
 				acceptance_criteria, notes, issue_type, assignee,
@@ -539,7 +542,10 @@ func (s *SQLiteStorage) GetDependencyTree(ctx context.Context, issueID string, m
 				JOIN dependencies d ON i.id = d.depends_on_id
 				JOIN tree t ON d.issue_id = t.id
 				WHERE t.depth < ?
-				AND t.path NOT LIKE '%' || i.id || '%'
+				AND t.path != i.id
+			AND t.path NOT LIKE i.id || '→%'
+			AND t.path NOT LIKE '%→' || i.id || '→%'
+			AND t.path NOT LIKE '%→' || i.id
 				)
 				SELECT id, title, status, priority, description, design,
 				acceptance_criteria, notes, issue_type, assignee,
@@ -552,7 +558,49 @@ func (s *SQLiteStorage) GetDependencyTree(ctx context.Context, issueID string, m
 
 	// First, build the complete tree with all paths using recursive CTE
 	// We need to track the full path to handle proper tree structure
+<<<<<<< HEAD
 	rows, err := s.db.QueryContext(ctx, query, issueID, maxDepth)
+=======
+	rows, err := s.db.QueryContext(ctx, `
+		WITH RECURSIVE tree AS (
+			SELECT
+			i.id, i.title, i.status, i.priority, i.description, i.design,
+			i.acceptance_criteria, i.notes, i.issue_type, i.assignee,
+			i.estimated_minutes, i.created_at, i.updated_at, i.closed_at,
+			i.external_ref,
+			0 as depth,
+			i.id as path,
+			i.id as parent_id
+			FROM issues i
+			WHERE i.id = ?
+
+			UNION ALL
+
+			SELECT
+			i.id, i.title, i.status, i.priority, i.description, i.design,
+			i.acceptance_criteria, i.notes, i.issue_type, i.assignee,
+			i.estimated_minutes, i.created_at, i.updated_at, i.closed_at,
+			i.external_ref,
+			t.depth + 1,
+			t.path || '→' || i.id,
+			t.id
+			FROM issues i
+			JOIN dependencies d ON i.id = d.depends_on_id
+			JOIN tree t ON d.issue_id = t.id
+			WHERE t.depth < ?
+			AND t.path != i.id
+			AND t.path NOT LIKE i.id || '→%'
+			AND t.path NOT LIKE '%→' || i.id || '→%'
+			AND t.path NOT LIKE '%→' || i.id
+			)
+			SELECT id, title, status, priority, description, design,
+			acceptance_criteria, notes, issue_type, assignee,
+			estimated_minutes, created_at, updated_at, closed_at,
+			external_ref, depth, parent_id
+			FROM tree
+			ORDER BY depth, priority, id
+	`, issueID, maxDepth)
+>>>>>>> origin/main
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dependency tree: %w", err)
 	}
